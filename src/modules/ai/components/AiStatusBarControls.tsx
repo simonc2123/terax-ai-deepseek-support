@@ -6,10 +6,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
+import { KbdTooltip } from "@/components/ui/kbd-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { fmtShortcut, MOD_KEY } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
+import { useShortcutKeys } from "@/modules/shortcuts";
 import {
   Add01Icon,
   ArrowDown01Icon,
@@ -73,25 +75,23 @@ export function AiOpenButton({ onOpen }: { onOpen: () => void }) {
 export function AiStatusBarControls() {
   const c = useComposer();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const openMini = useChatStore((s) => s.openMini);
+  const toggleMini = useChatStore((s) => s.toggleMini);
   const miniOpen = useChatStore((s) => s.mini.open);
   const closePanel = useChatStore((s) => s.closePanel);
 
+  const togglePanelKeys = useShortcutKeys("ai.toggle");
+  const toggleMiniKeys = useShortcutKeys("ai.miniWindow.toggle");
+
+  const voiceLabel = !c.voice.hasKey
+    ? "Voice needs an OpenAI key"
+    : c.voice.recording
+      ? "Stop & transcribe"
+      : c.voice.transcribing
+        ? "Transcribing…"
+        : "Voice input";
+
   return (
     <div className="flex items-center gap-0.5">
-      {/* <Button
-        onClick={closePanel}
-        title="Close AI panel"
-        size="xs"
-        variant="outline"
-        aria-label="Close AI panel"
-        className="text-[11px] text-foreground/85 pl-1.5"
-      > */}
-      {/* <Kbd className="h-4 gap-px text-[11px]">
-          ⌘<span className="font-mono">I</span>
-        </Kbd> */}
-      {/* Close */}
-      {/* </Button> */}
       <input
         ref={fileInputRef}
         type="file"
@@ -104,92 +104,94 @@ export function AiStatusBarControls() {
         }}
       />
 
-      <IconBtn
-        title="Attach file or image"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={c.isBusy}
-      >
-        <HugeiconsIcon icon={Add01Icon} size={13} strokeWidth={2} />
-      </IconBtn>
+      <KbdTooltip label="Attach file or image">
+        <IconBtn
+          title="Attach file or image"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={c.isBusy}
+        >
+          <HugeiconsIcon icon={Add01Icon} size={13} strokeWidth={2} />
+        </IconBtn>
+      </KbdTooltip>
 
       {c.voice.supported && (
-        <IconBtn
-          title={
-            !c.voice.hasKey
-              ? "Voice needs an OpenAI key"
-              : c.voice.recording
-                ? "Stop & transcribe"
-                : c.voice.transcribing
-                  ? "Transcribing…"
-                  : "Voice input"
-          }
-          onClick={() =>
-            c.voice.recording ? c.voice.stop() : void c.voice.start()
-          }
-          disabled={c.isBusy || c.voice.transcribing || !c.voice.hasKey}
-          className={cn(
-            c.voice.recording &&
-              "bg-destructive/10 text-destructive hover:bg-destructive/15",
-          )}
-        >
-          {c.voice.recording ? (
-            <span className="size-2 animate-pulse rounded-full bg-destructive" />
-          ) : c.voice.transcribing ? (
-            <Spinner className="size-3" />
-          ) : (
-            <HugeiconsIcon icon={Mic01Icon} size={13} strokeWidth={1.75} />
-          )}
-        </IconBtn>
+        <KbdTooltip label={voiceLabel}>
+          <IconBtn
+            title={voiceLabel}
+            onClick={() =>
+              c.voice.recording ? c.voice.stop() : void c.voice.start()
+            }
+            disabled={c.isBusy || c.voice.transcribing || !c.voice.hasKey}
+            className={cn(
+              c.voice.recording &&
+                "bg-destructive/10 text-destructive hover:bg-destructive/15",
+            )}
+          >
+            {c.voice.recording ? (
+              <span className="size-2 animate-pulse rounded-full bg-destructive" />
+            ) : c.voice.transcribing ? (
+              <Spinner className="size-3" />
+            ) : (
+              <HugeiconsIcon icon={Mic01Icon} size={13} strokeWidth={1.75} />
+            )}
+          </IconBtn>
+        </KbdTooltip>
       )}
 
       <ModelDropdown />
 
       <span className="mx-1 h-8 w-px bg-border" aria-hidden />
-      <Button
-        onClick={closePanel}
-        title="Close AI panel"
-        size="xs"
-        variant="ghost"
-        aria-label="Close AI panel"
-        className="text-[11px] text-foreground/85 px-1"
+      <KbdTooltip label="Close AI panel" keys={togglePanelKeys}>
+        <Button
+          onClick={closePanel}
+          size="xs"
+          variant="ghost"
+          aria-label="Close AI panel"
+          className="text-[11px] text-foreground/85 px-1"
+        >
+          <Kbd className="h-4 gap-px px-2 font-mono text-[11px]">
+            {fmtShortcut(MOD_KEY, "I")}
+          </Kbd>
+        </Button>
+      </KbdTooltip>
+      <KbdTooltip
+        label={miniOpen ? "Close conversation" : "Open conversation"}
+        keys={toggleMiniKeys}
       >
-        <Kbd className="h-4 gap-px px-2 font-mono text-[11px]">
-          {fmtShortcut(MOD_KEY, "I")}
-        </Kbd>
-        {/* <HugeiconsIcon icon={Close} size={15} strokeWidth={1.75} /> */}
-      </Button>
-      <IconBtn
-        title={miniOpen ? "Mini-window open" : "Open conversation"}
-        onClick={openMini}
-        disabled={miniOpen}
-      >
-        <HugeiconsIcon icon={Message01Icon} size={13} strokeWidth={1.75} />
-      </IconBtn>
+        <IconBtn
+          title={miniOpen ? "Close conversation" : "Open conversation"}
+          onClick={toggleMini}
+        >
+          <HugeiconsIcon icon={Message01Icon} size={13} strokeWidth={1.75} />
+        </IconBtn>
+      </KbdTooltip>
 
       {c.isBusy ? (
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={c.stop}
-          className="size-6"
-          aria-label="Stop"
-          title="Stop"
-        >
-          <HugeiconsIcon icon={StopCircleIcon} size={13} strokeWidth={1.75} />
-        </Button>
+        <KbdTooltip label="Stop">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={c.stop}
+            className="size-6"
+            aria-label="Stop"
+          >
+            <HugeiconsIcon icon={StopCircleIcon} size={13} strokeWidth={1.75} />
+          </Button>
+        </KbdTooltip>
       ) : (
-        <Button
-          type="button"
-          size="icon"
-          onClick={c.submit}
-          disabled={!c.canSend}
-          className="h-5.5 w-7.5 ml-1"
-          aria-label="Send"
-          title="Send (Enter)"
-        >
-          <HugeiconsIcon icon={ArrowUpIcon} size={13} strokeWidth={1.75} />
-        </Button>
+        <KbdTooltip label="Send" keys={["⏎"]}>
+          <Button
+            type="button"
+            size="icon"
+            onClick={c.submit}
+            disabled={!c.canSend}
+            className="h-5.5 w-7.5 ml-1"
+            aria-label="Send"
+          >
+            <HugeiconsIcon icon={ArrowUpIcon} size={13} strokeWidth={1.75} />
+          </Button>
+        </KbdTooltip>
       )}
     </div>
   );
@@ -295,26 +297,16 @@ function ModelDropdown() {
 }
 
 function IconBtn({
-  title,
-  onClick,
-  disabled,
   className,
   children,
-}: {
-  title: string;
-  onClick: () => void;
-  disabled?: boolean;
-  className?: string;
-  children: React.ReactNode;
-}) {
+  ...rest
+}: React.ComponentProps<typeof Button>) {
   return (
     <Button
       type="button"
       variant="ghost"
       size="icon"
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
+      {...rest}
       className={cn(
         "size-6 rounded-md text-muted-foreground hover:text-foreground",
         className,

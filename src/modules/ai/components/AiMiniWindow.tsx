@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { KbdTooltip } from "@/components/ui/kbd-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useChat, type UIMessage } from "@ai-sdk/react";
@@ -24,6 +25,7 @@ import {
   Cancel01Icon,
   Delete02Icon,
   FilterIcon,
+  StopCircleIcon,
   TerminalIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -137,6 +139,7 @@ function Body({
         isBusy={isBusy}
         onClose={onClose}
         onExpand={onExpand}
+        onStop={helpers.stop}
         messages={helpers.messages}
       />
 
@@ -154,6 +157,8 @@ function Body({
               clearError={helpers.clearError}
               addToolApprovalResponse={helpers.addToolApprovalResponse}
               stop={helpers.stop}
+              setMessages={helpers.setMessages}
+              sendMessage={helpers.sendMessage}
             />
           </div>
         )}
@@ -214,12 +219,14 @@ function Header({
   step,
   isBusy,
   onClose,
+  onStop,
   messages,
 }: {
   step: string | null;
   isBusy: boolean;
   onClose: () => void;
   onExpand: () => void;
+  onStop?: () => void | PromiseLike<void>;
   messages?: UIMessage[];
 }) {
   const customAgents = useAgentsStore((s) => s.customAgents);
@@ -240,18 +247,37 @@ function Header({
             <span className="max-w-32 truncate">{step ?? "Thinking…"}</span>
           </span>
         ) : null}
+        {isBusy && onStop ? (
+          <KbdTooltip label="Stop response">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => void onStop()}
+              className="size-5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              aria-label="Stop response"
+            >
+              <HugeiconsIcon
+                icon={StopCircleIcon}
+                size={12}
+                strokeWidth={1.75}
+              />
+            </Button>
+          </KbdTooltip>
+        ) : null}
         <SessionPicker />
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={onClose}
-          className="size-5"
-          aria-label="Close"
-          title="Close (Esc)"
-        >
-          <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={1.75} />
-        </Button>
+        <KbdTooltip label="Close" keys={["Esc"]}>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onClose}
+            className="size-5"
+            aria-label="Close"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={1.75} />
+          </Button>
+        </KbdTooltip>
       </div>
     </div>
   );

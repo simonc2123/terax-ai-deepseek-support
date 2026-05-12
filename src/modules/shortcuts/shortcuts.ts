@@ -20,6 +20,7 @@ export type ShortcutId =
   | "explorer.search"
   | "ai.toggle"
   | "ai.askSelection"
+  | "ai.miniWindow.toggle"
   | "shortcuts.open"
   | "settings.open"
   | "sidebar.toggle";
@@ -149,6 +150,12 @@ export const SHORTCUTS: Shortcut[] = [
     label: "Ask AI about selection",
     group: "AI",
     defaultBindings: [{ [MOD_PROP]: true, key: "l" }],
+  },
+  {
+    id: "ai.miniWindow.toggle",
+    label: "Toggle AI mini-window",
+    group: "AI",
+    defaultBindings: [{ [MOD_PROP]: true, shift: true, key: "m" }],
   },
   {
     id: "sidebar.toggle",

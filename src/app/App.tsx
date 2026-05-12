@@ -145,6 +145,7 @@ export default function App() {
   const [newEditorOpen, setNewEditorOpen] = useState(false);
   const miniOpen = useChatStore((s) => s.mini.open);
   const openMini = useChatStore((s) => s.openMini);
+  const toggleMini = useChatStore((s) => s.toggleMini);
   const focusInput = useChatStore((s) => s.focusInput);
   const openPanel = useChatStore((s) => s.openPanel);
   const panelOpen = useChatStore((s) => s.panelOpen);
@@ -564,6 +565,7 @@ export default function App() {
       "search.focus": () => searchInlineRef.current?.focus(),
       "ai.toggle": togglePanelAndFocus,
       "ai.askSelection": askFromSelection,
+      "ai.miniWindow.toggle": toggleMini,
       "shortcuts.open": () => setShortcutsOpen((v) => !v),
       "settings.open": () => void openSettingsWindow(),
       "sidebar.toggle": toggleSidebar,
@@ -579,6 +581,7 @@ export default function App() {
       focusNextPaneInTab,
       togglePanelAndFocus,
       askFromSelection,
+      toggleMini,
       toggleSidebar,
     ],
   );
