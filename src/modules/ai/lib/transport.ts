@@ -75,7 +75,8 @@ export function createContextAwareTransport(deps: Deps) {
         projectMemory,
       });
       const base = new DirectChatTransport({ agent });
-      const augmented = injectContext(options.messages, deps.getLive());
+      const sanitized = sanitizeMessagesForSend(options.messages);
+      const augmented = injectContext(sanitized, deps.getLive());
       return base.sendMessages({
         ...options,
         messages: augmented,
@@ -100,6 +101,62 @@ export function createContextAwareTransport(deps: Deps) {
       return base.reconnectToStream(options as ReconnectArg);
     },
   };
+}
+
+/**
+ * Strip out incomplete assistant fragments before sending to the model.
+ *
+ * Two failure modes this guards against:
+ *   1. Orphan tool calls — an assistant tool part stuck in
+ *      input-streaming / input-available / approval-requested / approval-responded
+ *      has no corresponding tool result. OpenAI/DeepSeek/etc. reject the
+ *      payload with "Tool result is missing for tool call ...".
+ *   2. Empty assistant turns — an assistant message whose only parts are
+ *      `reasoning` (no text, no completed tool calls) trips
+ *      "Invalid assistant message: content or tool_calls must be set" on
+ *      reasoning models when the user follows up.
+ *
+ * The cleanup is purely outbound — the original messages stay in the UI
+ * (and on disk), so users can still see what the assistant produced.
+ */
+function sanitizeMessagesForSend(messages: UIMessage[]): UIMessage[] {
+  const out: UIMessage[] = [];
+  for (const m of messages) {
+    if (m.role !== "assistant") {
+      out.push(m);
+      continue;
+    }
+    const cleanParts = m.parts.filter((p) => {
+      const type = (p as { type?: string }).type ?? "";
+      const isTool =
+        type === "dynamic-tool" || type.startsWith("tool-");
+      if (!isTool) return true;
+      const state = (p as { state?: string }).state ?? "";
+      // Only keep tool parts that have a result (or a final error).
+      return state === "output-available" || state === "output-error";
+    });
+
+    let hasMeaningfulContent = false;
+    for (const p of cleanParts) {
+      const type = (p as { type?: string }).type ?? "";
+      if (type === "text") {
+        const text = (p as { text?: string }).text ?? "";
+        if (text.trim().length > 0) {
+          hasMeaningfulContent = true;
+          break;
+        }
+      } else if (type === "dynamic-tool" || type.startsWith("tool-")) {
+        hasMeaningfulContent = true;
+        break;
+      }
+    }
+    // Drop reasoning-only / empty assistant messages — the provider will
+    // 4xx if we forward them.
+    if (!hasMeaningfulContent) continue;
+
+    out.push({ ...m, parts: cleanParts as UIMessage["parts"] });
+  }
+  return out;
 }
 
 function injectContext(messages: UIMessage[], live: LiveSnapshot): UIMessage[] {

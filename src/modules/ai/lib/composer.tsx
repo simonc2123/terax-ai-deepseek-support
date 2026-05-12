@@ -49,7 +49,20 @@ type ComposerCtx = {
   pickedCommands: SlashCommandMeta[];
   addCommand: (c: SlashCommandMeta) => void;
   removeCommand: (name: string) => void;
+  /** True while the model is producing a response (thinking or streaming). */
   isBusy: boolean;
+  /**
+   * True while an assistant tool call is waiting for the user to approve or
+   * reject. Sending a new message in this state would corrupt the message
+   * history (orphan tool_call), so submits are blocked.
+   */
+  isAwaitingApproval: boolean;
+  /**
+   * True after the user pressed Enter / clicked Send while `isBusy` was true.
+   * The submit will auto-fire as soon as the model goes idle.
+   */
+  isQueued: boolean;
+  cancelQueued: () => void;
   submit: () => void;
   stop: () => void;
   voice: Voice;
@@ -73,12 +86,19 @@ export function AiComposerProvider({ children }: ProviderProps) {
   const sessionId = useChatStore((s) => s.activeSessionId);
   const status = useChatStore((s) => s.agentMeta.status);
   const isBusy = status === "thinking" || status === "streaming";
+  const isAwaitingApproval = status === "awaiting-approval";
 
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [pickedSnippets, setPickedSnippets] = useState<Snippet[]>([]);
   const [pickedCommands, setPickedCommands] = useState<SlashCommandMeta[]>([]);
+  const [queuedSend, setQueuedSend] = useState<MessagePart[] | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // A queued send belongs to one session; switching sessions drops it.
+  useEffect(() => {
+    setQueuedSend(null);
+  }, [sessionId]);
 
   const focusSignal = useChatStore((s) => s.focusSignal);
   const pendingPrefill = useChatStore((s) => s.pendingPrefill);
@@ -203,7 +223,10 @@ export function AiComposerProvider({ children }: ProviderProps) {
   };
 
   const submit = () => {
-    if (isBusy) return;
+    // Approval pending: a new user message would orphan the in-flight
+    // tool_call and the provider 4xxs the next request. Block until the
+    // user accepts or rejects.
+    if (isAwaitingApproval) return;
     const trimmed = value.trim();
     if (
       !trimmed &&
@@ -291,6 +314,18 @@ export function AiComposerProvider({ children }: ProviderProps) {
     }
 
     if (!sessionId) return;
+
+    // Busy: queue the composed parts and clear the input so the user can
+    // start the next message. The flush effect fires on idle.
+    if (isBusy) {
+      setQueuedSend(parts);
+      setValue("");
+      setFiles([]);
+      setPickedSnippets([]);
+      setPickedCommands([]);
+      return;
+    }
+
     const chat = getOrCreateChat(sessionId);
     void chat.sendMessage({ role: "user", parts } as Parameters<
       typeof chat.sendMessage
@@ -301,13 +336,28 @@ export function AiComposerProvider({ children }: ProviderProps) {
     setPickedCommands([]);
   };
 
+  // Flush any queued send once the chat goes idle.
+  useEffect(() => {
+    if (!queuedSend) return;
+    if (isBusy || isAwaitingApproval) return;
+    if (!sessionId) return;
+    const parts = queuedSend;
+    setQueuedSend(null);
+    const chat = getOrCreateChat(sessionId);
+    void chat.sendMessage({ role: "user", parts } as Parameters<
+      typeof chat.sendMessage
+    >[0]);
+  }, [queuedSend, isBusy, isAwaitingApproval, sessionId]);
+
+  const cancelQueued = () => setQueuedSend(null);
+
   const stop = () => {
     if (!sessionId) return;
     void getOrCreateChat(sessionId).stop();
   };
 
   const canSend =
-    !isBusy &&
+    !isAwaitingApproval &&
     (value.trim().length > 0 ||
       files.length > 0 ||
       pickedSnippets.length > 0 ||
@@ -328,6 +378,9 @@ export function AiComposerProvider({ children }: ProviderProps) {
     addCommand,
     removeCommand,
     isBusy,
+    isAwaitingApproval,
+    isQueued: queuedSend !== null,
+    cancelQueued,
     submit,
     stop,
     voice,

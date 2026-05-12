@@ -194,9 +194,17 @@ export function AiInputBar() {
                     c.submit();
                   }
                 }}
-                placeholder="Ask Terax anything   -   # for snippets and commands"
+                placeholder={
+                  c.isAwaitingApproval
+                    ? "Approve or reject the tool call to continue…"
+                    : c.isQueued
+                      ? "Message queued - it'll send when the agent finishes"
+                      : c.isBusy
+                        ? "Type to queue your next message…"
+                        : "Ask Terax anything   -   # for snippets and commands"
+                }
                 rows={1}
-                disabled={c.isBusy}
+                disabled={c.isAwaitingApproval}
                 className={cn(
                   "max-h-40 flex-1 resize-none bg-transparent text-[13px] leading-relaxed outline-none",
                   "placeholder:text-muted-foreground/60",
@@ -229,6 +237,28 @@ export function AiInputBar() {
                 <Spinner className="size-3" />
               )}
               <span className="truncate">{voiceLabel}</span>
+            </motion.div>
+          )}
+          {c.isQueued && (
+            <motion.div
+              key="queued"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.12 }}
+              className="flex items-center justify-between gap-1.5 px-1 text-[11px] text-muted-foreground"
+            >
+              <span className="flex items-center gap-1.5 truncate">
+                <Spinner className="size-3" />
+                Message queued - sends when the agent finishes.
+              </span>
+              <button
+                type="button"
+                onClick={c.cancelQueued}
+                className="rounded px-1 py-0.5 hover:bg-accent hover:text-foreground"
+              >
+                Cancel
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
