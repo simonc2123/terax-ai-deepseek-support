@@ -267,6 +267,11 @@ pub(crate) fn build_oneshot_command(command: &str) -> Command {
     }
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW (0x08000000): suppresses the brief console flash
+        // that would otherwise appear when spawning cmd.exe / powershell.exe
+        // from a GUI app. Output is captured via piped stdio anyway.
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
         let shell = crate::modules::pty::shell_init::windows_shell_path();
         let mut cmd = Command::new(&shell);
         let is_cmd = shell
@@ -279,6 +284,7 @@ pub(crate) fn build_oneshot_command(command: &str) -> Command {
         } else {
             cmd.arg("-NoProfile").arg("-Command").arg(command);
         }
+        cmd.creation_flags(CREATE_NO_WINDOW);
         cmd
     }
 }
